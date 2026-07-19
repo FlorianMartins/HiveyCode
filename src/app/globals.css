@@ -2,26 +2,364 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 🐝 Hivey Code — neutral premium dark (Gemini / bolt.new vibe): neutral surfaces & text, very
+   subtle borders, violet accent used sparingly. Shared with the Hivey sidebar. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Ultra-deep near-black base (Vercel/shadcn vibe). Every colour below is a user-tunable knob
+     (Settings → Appearance) driving one CSS variable, persisted + synced with the sidebar. */
+  --bg: #09090b;
+  /* Surfaces are built from ONE base rgb + an alpha, graded so panels stay lighter than the bg → depth. */
+  --surface-rgb: 24, 24, 28; /* ≈ #18181c, sits above the near-black bg */
+  --surface-alpha: 0.9;
+  --border-rgb: 255, 255, 255;
+  --border-alpha: 0.1;
+  --aura-color: #6366f1;
+  --aura-2: #8b5cf6;
+  --aura-size: 950px;
+  --aura-opacity: 0.15;
+  --panel: rgba(var(--surface-rgb), var(--surface-alpha));
+  --panel-2: rgba(var(--surface-rgb), min(1, calc(var(--surface-alpha) + 0.06)));
+  --tool: rgba(var(--surface-rgb), calc(var(--surface-alpha) - 0.14));
+  --elevated: rgba(var(--surface-rgb), min(1, calc(var(--surface-alpha) + 0.09)));
+  --border: rgba(var(--border-rgb), var(--border-alpha));
+  --border-soft: rgba(var(--border-rgb), calc(var(--border-alpha) * 0.5));
+  --accent: #6366f1;
+  --accent-2: #8b5cf6;
+  /* Brand gradient (blue → violet), shared with the sidebar. Editing the accents restyles it live. */
+  --grad: linear-gradient(135deg, var(--accent) 0%, var(--accent) 40%, var(--accent-2) 100%);
+  --grad-soft: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent-2) 16%, transparent));
+  --text: #f4f2fc;
+  --muted: rgba(236, 232, 248, 0.66);
+  --on-accent: #ffffff;
+  --error: #3a1d24;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --ui-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Two soft violet glows — one on the LEFT, one on the RIGHT — over a deep neutral gradient. */
+  background:
+    radial-gradient(var(--aura-size) circle at 20% -10%, color-mix(in srgb, var(--aura-color) calc(var(--aura-opacity) * 100%), transparent), transparent 45%),
+    radial-gradient(calc(var(--aura-size) * 0.86) circle at 100% 0%, color-mix(in srgb, var(--aura-2) calc(var(--aura-opacity) * 66%), transparent), transparent 42%),
+    linear-gradient(180deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 55%, #000) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--ui-font);
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* ── 2026 premium motion + glass ─────────────────────────────────────────── */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
+.pop-in {
+  animation: pop-in 0.14s ease-out;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.msg-in {
+  animation: fade-up 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ROTATING gradient border: a colour→transparent arc with a bright point at the centre of the
+   colour, sweeping around the chat zone. The conic gradient is masked to the border ring only.
+   Shown while a message is processing (.is-busy) and on focus. */
+.neon {
+  position: relative;
+}
+@property --hvAngle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.neon::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: calc(var(--radius) + 1.5px);
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: conic-gradient(
+    from var(--hvAngle),
+    transparent 0deg,
+    color-mix(in srgb, var(--accent) 30%, transparent) 22deg,
+    var(--accent-2) 40deg,
+    color-mix(in srgb, var(--accent) 30%, transparent) 58deg,
+    transparent 80deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.neon:focus-within::before {
+  opacity: 1;
+  animation: hv-spin 4.5s linear infinite;
+}
+.neon.is-busy::before {
+  opacity: 1;
+  animation: hv-spin 2.8s linear infinite;
+}
+@keyframes hv-spin {
+  to {
+    --hvAngle: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neon::before {
+    animation: none;
+  }
+}
+
+/* Chat input box — ONLY a static coloured frame (violet 1px ring), no fill / no blur / no glow. The
+   conic border animation (.neon::before) still plays on focus / while running. */
+.composer-box {
+  background: transparent;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+/* Assistant reply bubble — translucent panel (no backdrop blur). */
+.bubble-ai {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+}
+
+/* Soft transitions on interactive elements for a polished feel. */
+button,
+.pill,
+a {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
+}
+
+/* Rich markdown rendering for assistant replies. */
+.md {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+  word-break: break-word;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0.55em 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.9em 0 0.45em;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.md h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.md h2 {
+  font-size: 1.16em;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.md h3 {
+  font-size: 1.06em;
+  color: color-mix(in srgb, var(--accent-2) 55%, var(--text));
+}
+.md h4 {
+  font-size: 1em;
+}
+.md strong {
+  color: #fff;
+  font-weight: 650;
+}
+.md em {
+  color: var(--muted);
+}
+.md a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  transition: color 0.15s;
+}
+.md a:hover {
+  color: var(--accent);
+}
+.md ul,
+.md ol {
+  margin: 0.55em 0;
+  padding-left: 1.35em;
+}
+.md li {
+  margin: 0.3em 0;
+}
+.md li::marker {
+  color: var(--accent);
+}
+.md ul li {
+  list-style: none;
+  position: relative;
+}
+.md ul li::before {
+  content: "";
+  position: absolute;
+  left: -1.05em;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.md hr {
+  margin: 1.1em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+/* Inline code — a tinted accent chip. */
+.md :not(pre) > code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  color: color-mix(in srgb, var(--accent-2) 72%, #fff);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-radius: 6px;
+  padding: 0.08em 0.38em;
+}
+/* Fenced code block — a crisp dark panel with an accent edge. */
+.md pre {
+  position: relative;
+  margin: 0.7em 0;
+  padding: 0.85em 1em;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #e6e3f5;
+}
+.md blockquote {
+  margin: 0.6em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--muted);
+}
+.md table {
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.92em;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.md th {
+  background: var(--tool);
+  color: color-mix(in srgb, var(--accent-2) 60%, var(--text));
+  font-weight: 600;
+}
+.md tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Thin, themed scrollbars to match the sidebar's dense, dark feel. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Sandpack: drop our dark theme onto the preview/editor panels. */
+.sp-wrapper,
+.sp-layout {
+  --sp-colors-surface1: var(--panel) !important;
+  --sp-colors-surface2: var(--tool) !important;
+  --sp-colors-surface3: var(--tool) !important;
+  --sp-colors-base: var(--text) !important;        /* default text — was near-black */
+  --sp-colors-clickable: var(--muted) !important;
+  --sp-colors-hover: var(--text) !important;
+  --sp-colors-disabled: var(--muted) !important;
+  --sp-colors-accent: var(--accent) !important;
+  border-color: var(--border) !important;
+}
+/* Kill the grey/white flash while the preview dev-server boots: theme the iframe + its container,
+   and hide Sandpack's built-in grey loading skeleton (we show our own themed overlay instead). */
+.sp-preview-container,
+.sp-preview-iframe,
+.sp-preview-actions,
+.sp-overlay,
+.sp-loading {
+  background-color: var(--bg) !important;
+}
+.sp-loading,
+.sp-cube-wrapper {
+  display: none !important;
+}
+.sp-preview-container { color: var(--text); }

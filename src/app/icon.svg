@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Hivey AI">
+  <defs>
+    <linearGradient id="hive" x1="8" y1="8" x2="88" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="0.55" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Hivey mark: a beehive (skep) built from 4 thick, fully-rounded horizontal bars,
+       widest on top tapering to the smallest at the bottom.
+       Yellow→orange gradient, no background, legible down to favicon size. -->
+  <g fill="url(#hive)">
+    <rect x="17" y="9" width="62" height="14" rx="7"/>
+    <rect x="8" y="30" width="80" height="14" rx="7"/>
+    <rect x="12" y="51" width="72" height="14" rx="7"/>
+    <rect x="23" y="72" width="50" height="14" rx="7"/>
+  </g>
+</svg>
