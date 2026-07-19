@@ -432,7 +432,22 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
       yield* streamPatch({ model: pick("coder"), ...conn, reasoning: "off", messages: tplMsgs }, t1);
       const parsed = parseEdits(t1.raw);
       const applied = applyEdits(baseFiles, parsed.patches, parsed.fullFiles);
-      if (applied.changed.length) {
+      // Did the adaptation actually LAND? Three ways it silently doesn't, all of which used to ship
+      // the generic seed as if it were the user's app:
+      //   • nothing applicable at all (patch truncated at the CODE_TOKENS ceiling — and unlike
+      //     streamCode, streamPatch has no continuation loop to resume it);
+      //   • some SEARCH snippets didn't match the file verbatim, so those edits were dropped;
+      //   • the edits landed only on peripheral files (index.html / styles.css) while the MAIN
+      //     component — the one that carries the whole app — kept the seed's content. Observed for
+      //     real: a "dark analytics dashboard" request came back as the light seed with a restyled
+      //     stylesheet, and every requested feature missing.
+      // Any of the three means the result is not the requested app, so fall through to a REAL full
+      // build and drop the seed so its look can't anchor the design.
+      const mainFile = Object.keys(baseFiles).find((p) => /(^|\/)App\.(t|j)sx$/.test(p));
+      const mainChanged = !mainFile || applied.changed.includes(mainFile);
+      const landed = applied.changed.length > 0 && mainChanged && applied.failures.length === 0;
+
+      if (landed) {
         tplApplied = applied;
         narration = t1.narration;
         applied.changed.forEach((p) => touched.add(p));
@@ -440,20 +455,16 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
           yield { type: "file-open", path: p };
           yield { type: "file", path: p, content: applied.files[p] };
         }
-        if (applied.failures.length) {
-          const paths = [...new Set(applied.failures.map((f) => f.path))].join(", ");
-          narration += (narration ? "\n\n" : "") + `Couldn't locate ${applied.failures.length} snippet(s) to patch in ${paths}.`;
-        }
       } else {
-        // NOTHING applicable came back. The usual cause is a patch truncated at the CODE_TOKENS
-        // ceiling — and unlike streamCode, streamPatch has no continuation loop to resume it.
-        // Shipping the untouched seed here (what we used to do) hands the user a generic app that
-        // ignores their request — wrong theme, missing features — while reporting success. Fall
-        // through to a REAL full build instead, and drop the seed so its look can't anchor the design.
+        const why = !applied.changed.length
+          ? "came back empty"
+          : applied.failures.length
+            ? `couldn't apply ${applied.failures.length} edit(s)`
+            : `left ${mainFile} untouched`;
         yield {
           type: "status",
           role: "coder",
-          message: "The template adaptation came back empty — building your app from scratch instead…",
+          message: `The template adaptation ${why} — building your app from scratch instead…`,
         };
         buildBase = { ...tpl.scaffold };
       }
@@ -688,9 +699,10 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
       const reviewRaw = yield* callRole("reviewer", {
         model: pick("reviewer"),
         ...conn,
-        // Room to emit ONE checklist entry per expected feature with evidence. At the old 500 the
-        // reviewer physically could not enumerate, so it defaulted to a one-line rubber stamp.
-        maxTokens: 1600,
+        // Room to emit ONE checklist entry per expected feature with evidence. At 500 the reviewer
+        // physically could not enumerate and defaulted to a one-line rubber stamp; at 1600 it hit the
+        // cap mid-list and the truncated JSON was waved through. 3000 + short evidence fits.
+        maxTokens: 3000,
         messages: [
           { role: "system", content: SYSTEM.reviewer },
           { role: "user", content: `EXPECTED FEATURES:\n${features}\n\nCURRENT PROJECT:\n${summariseFiles(project)}` },
@@ -783,6 +795,20 @@ interface ReviewEntry {
   evidence?: unknown;
 }
 
+// Salvage a verdict from a reviewer reply that was cut off before its closing brace. Failing OPEN on
+// unparseable output would re-create exactly the rubber stamp this whole path exists to prevent: the
+// completeness pass DID hit its cap mid-enumeration and got waved through as "all features present".
+// If any entry was already emitted as partial/missing, that alone fails the pass.
+function salvageReview(raw: string): { ok: boolean; notes: string } | null {
+  // The gap must not span into the NEXT entry, or a `present` feature gets tagged with the following
+  // entry's failing verdict — so the lazy run explicitly refuses to cross another "feature" key.
+  const bad = [
+    ...raw.matchAll(/"feature"\s*:\s*"([^"]{0,160})"(?:(?!"feature")[\s\S]){0,240}?"verdict"\s*:\s*"(partial|missing)"/gi),
+  ];
+  if (!bad.length) return null;
+  return { ok: false, notes: bad.map((m) => `- ${m[1]}: ${m[2]}`).join("\n") };
+}
+
 function safeJson(raw: string): { ok: boolean; notes: string } {
   try {
     const m = raw.match(/\{[\s\S]*\}/);
@@ -807,5 +833,5 @@ function safeJson(raw: string): { ok: boolean; notes: string } {
   } catch {
     // fall through
   }
-  return { ok: true, notes: "" };
+  return salvageReview(raw) ?? { ok: true, notes: "" };
 }

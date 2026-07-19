@@ -279,6 +279,9 @@ export const SYSTEM: Record<Role, string> = {
     "If you were given an EXPECTED FEATURES list, `checked` MUST contain exactly ONE entry per listed " +
     "feature — never skip one, never merge two. If no list was given, `checked` may be empty and you " +
     "just report bugs and layout defects in `notes`.\n" +
+    "BE TERSE — the whole reply must fit in one response. Keep each `evidence` under 12 words (a file " +
+    "and a symbol is enough, no prose) and `notes` under 100 words. A reply cut off mid-list is " +
+    "treated as a FAILED review, so brevity is what lets your verdict count.\n" +
     "Set ok=true ONLY if every entry is \"present\" AND the app runs AND there is no layout defect from " +
     "category (3). Any \"partial\" or \"missing\" entry means ok=false.",
   debugger:
