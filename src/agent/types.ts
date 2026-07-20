@@ -26,6 +26,16 @@ export type AgentEvent =
   | { type: "review"; ok: boolean; notes: string }
   | { type: "usage"; role: Role; model: string; prompt: number; completion: number; cost: number } // per-call token/cost
   | { type: "error"; message: string }
+  // Cost gate: what this build is expected to cost, emitted BEFORE the coder runs so the user can
+  // decline. The run stops after this; the client resumes with `approvedEstimate: true`.
+  | {
+      type: "estimate";
+      low: number;
+      high: number;
+      priced: boolean;
+      basis: string;
+      lines: { role: string; model: string; promptTokens: number; completionTokens: number; low: number; high: number }[];
+    }
   | { type: "done" };
 
 export interface AgentRequest {
@@ -42,6 +52,8 @@ export interface AgentRequest {
   answered?: boolean; // the guided clarifying questions WERE answered → honour those choices over the template
   planOnly?: boolean; // plan-first: produce the plan then STOP (await user approval before coding)
   approvedPlan?: string; // a user-approved/edited plan → skip the planner, hand this to the coder
+  estimate?: boolean; // false = skip the cost gate entirely (user opted out of being asked)
+  approvedEstimate?: boolean; // the user saw the cost estimate and accepted it → build now
   ask?: boolean; // ASK mode: just ANSWER a question about the project (no build, no file changes)
 }
 

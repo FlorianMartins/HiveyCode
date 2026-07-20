@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useStore } from "@/store/useStore";
+import { useStore, type EstimateData } from "@/store/useStore";
 import { useAgent } from "@/hooks/useAgent";
 import { InputControls } from "./InputControls";
 import { UsageMeter } from "./UsageMeter";
@@ -18,7 +18,7 @@ export function Chat() {
   const { chat, running, paused, setPaused, runtimeError, selection, setSelection, resumable, setResumable, askMode } = useStore();
   const restoreRedo = useStore((s) => s.restoreRedo);
   const undoRestore = useStore((s) => s.undoRestore);
-  const { sendPrompt, answerQuestions, fixError, resumeRun } = useAgent();
+  const { sendPrompt, answerQuestions, approveEstimate, declineEstimate, fixError, resumeRun } = useAgent();
   const t = useT();
   const [input, setInput] = useState("");
   const [composerH, setComposerH] = usePersistentNumber("hivey.ui.composerH", 150); // resizable input height
@@ -88,6 +88,9 @@ export function Chat() {
                 <Markdown>{m.content}</Markdown>
                 {m.questions && i === chat.length - 1 && !running && (
                   <QuestionsPanel questions={m.questions} onSubmit={answerQuestions} />
+                )}
+                {m.estimate && i === chat.length - 1 && !running && (
+                  <EstimatePanel data={m.estimate} onApprove={approveEstimate} onDecline={declineEstimate} />
                 )}
               </div>
               {m.content && (
@@ -378,6 +381,58 @@ function ChoicesCard({ content }: { content: string }) {
 
 // Guided (Hivey Smart) mode: clickable options (design directions shown as visual thumbnails), plus
 // MULTIPLE custom answers per question (a "+" list). The user picks/adds, then builds — or lets Smart decide.
+// The cost gate. Shown BEFORE any code is generated, so declining costs the user nothing.
+function EstimatePanel({
+  data,
+  onApprove,
+  onDecline,
+}: {
+  data: EstimateData;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  const money = (n: number) => (n < 0.01 ? "<$0.01" : `$${n.toFixed(2)}`);
+  const range = data.low === data.high ? money(data.high) : `${money(data.low)} – ${money(data.high)}`;
+  return (
+    <div className="mt-2 rounded-xl border border-border bg-surface/60 p-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-sm text-muted">Estimated cost</span>
+        <span className="text-lg font-semibold text-text">{range}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted">{data.basis}</p>
+      <ul className="mt-2 space-y-1">
+        {data.lines.map((l) => (
+          <li key={l.role} className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted">
+            <span className="min-w-0 truncate">
+              <span className="text-text">{l.role}</span> · {l.model}
+            </span>
+            <span className="shrink-0 tabular-nums">
+              ~{Math.round((l.promptTokens + l.completionTokens) / 1000)}k tok
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted">
+        Nothing has been generated yet — declining costs you nothing.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          onClick={onApprove}
+          className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+        >
+          Build it
+        </button>
+        <button
+          onClick={onDecline}
+          className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-text"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function QuestionsPanel({ questions, onSubmit }: { questions: AgentQuestion[]; onSubmit: (answerText: string, summary: string) => void }) {
   const [picks, setPicks] = useState<Record<number, string[]>>({});
   const [customs, setCustoms] = useState<Record<number, string[]>>({});

@@ -79,6 +79,15 @@ export function useAgent() {
         }
         break;
       }
+      case "estimate":
+        // Cost gate — the run stopped BEFORE the coder. Show what it will cost and wait for a
+        // decision; nothing has been spent on code generation at this point.
+        s.pushChat({
+          role: "assistant",
+          content: "",
+          estimate: { low: ev.low, high: ev.high, priced: ev.priced, basis: ev.basis, lines: ev.lines },
+        });
+        break;
       case "questions":
         // Guided (Hivey Smart) mode: render clarifying questions the user can answer before building.
         s.pushChat({ role: "assistant", content: ev.intro, questions: ev.questions });
@@ -103,7 +112,15 @@ export function useAgent() {
   const runRequest = async (
     displayText: string,
     fullPrompt: string,
-    opts?: { interview?: boolean; answered?: boolean; planOnly?: boolean; approvedPlan?: string; skipUserEcho?: boolean },
+    opts?: {
+      interview?: boolean;
+      answered?: boolean;
+      planOnly?: boolean;
+      approvedPlan?: string;
+      skipUserEcho?: boolean;
+      estimate?: boolean;
+      approvedEstimate?: boolean;
+    },
   ) => {
     const s = useStore.getState();
     // A local provider (Ollama/LM Studio/custom, "provider|model") needs no key.
@@ -118,6 +135,8 @@ export function useAgent() {
     const planOnly = false;
     planOnlyActive = planOnly;
     lastRunFailed = false;
+    // Keep the exact prompt so the cost gate can replay THIS request (answers included) on approval.
+    useStore.setState({ lastRunPrompt: fullPrompt });
     // ASK mode = read-only Q&A about the project: no checkpoint, no snapshot, no jump to the editor —
     // it never touches files, it just answers in the chat.
     const askMode = s.askMode;
@@ -155,6 +174,8 @@ export function useAgent() {
           planOnly,
           approvedPlan: opts?.approvedPlan,
           ask: askMode,
+          estimate: opts?.estimate,
+          approvedEstimate: opts?.approvedEstimate,
         }),
       });
       if (!res.body) throw new Error("No response stream");
@@ -213,6 +234,22 @@ export function useAgent() {
     const base = s.pendingPrompt || "";
     const combined = `${base}\n\n=== FIRM REQUIREMENTS (the user answered the clarifying questions) ===\nThe finished app MUST match ALL of these choices EXACTLY — especially the chosen VISUAL STYLE / design direction and the selected features. Treat them as the authoritative spec; do not substitute your own defaults where the user made a choice.\n${answerText}`;
     runRequest(displaySummary, combined, { interview: false, answered: true });
+  };
+
+  // The user accepted the estimated cost → replay the SAME request verbatim, past the gate. Replaying
+  // `lastRunPrompt` (not `pendingPrompt`) matters: after a guided interview the real prompt carries the
+  // user's answers, and rebuilding it from the base would silently drop their choices.
+  const approveEstimate = () => {
+    const s = useStore.getState();
+    if (s.running) return;
+    runRequest("Building…", s.lastRunPrompt, { interview: false, answered: true, approvedEstimate: true, skipUserEcho: true });
+  };
+
+  const declineEstimate = () => {
+    useStore.getState().pushChat({
+      role: "assistant",
+      content: "Build cancelled — nothing was generated, so nothing was charged. Adjust your request and try again.",
+    });
   };
 
   const fixError = () => {
@@ -358,5 +395,5 @@ export function useAgent() {
     st.setPendingBuild(null);
   };
 
-  return { runRequest, sendPrompt, answerQuestions, fixError, fixIssue, scanSecurity, fixFinding, fixFindingsBatch, deepScan, approvePlan, cancelPlan, resumeRun };
+  return { runRequest, sendPrompt, answerQuestions, approveEstimate, declineEstimate, fixError, fixIssue, scanSecurity, fixFinding, fixFindingsBatch, deepScan, approvePlan, cancelPlan, resumeRun };
 }

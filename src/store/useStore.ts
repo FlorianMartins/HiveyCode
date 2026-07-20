@@ -5,6 +5,15 @@ import type { FileMap, HiveyVariant, AgentQuestion, SecurityFinding } from "@/ag
 import { applyUi, loadUi } from "@/lib/uiTheme";
 import { applyThemePalette, loadSavedPalette } from "@/lib/themeSync";
 
+// What the cost gate shows before any code is generated.
+export interface EstimateData {
+  low: number;
+  high: number;
+  priced: boolean;
+  basis: string;
+  lines: { role: string; model: string; promptTokens: number; completionTokens: number; low: number; high: number }[];
+}
+
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -12,6 +21,7 @@ export interface ChatMsg {
   reasoning?: boolean; // true = live model-reasoning block (collapsible; not persisted)
   step?: string; // a pipeline step (plan / features / review…) — rendered collapsed by default
   questions?: AgentQuestion[]; // guided mode: clarifying questions to render interactively
+  estimate?: EstimateData; // cost gate: what the build will cost, awaiting the user's go-ahead
   error?: boolean; // true = an error report (rendered with a red style + an always-visible copy button)
 }
 
@@ -144,6 +154,7 @@ interface State {
   codeNonce: number; // bumped when the workspace should jump to the Code tab (watch the agent write)
   requestCode: () => void;
   pendingPrompt: string; // guided mode: the original request kept while questions are answered
+  lastRunPrompt: string; // the exact prompt of the current run, replayed verbatim once the cost is approved
   addMemory: (text: string, auto?: boolean) => void;
   removeMemory: (id: string) => void;
   addMcpServer: (name: string, url: string) => void;
@@ -478,6 +489,7 @@ export const useStore = create<State>((set, get) => {
     codeNonce: 0,
     requestCode: () => set((s) => ({ codeNonce: s.codeNonce + 1 })),
     pendingPrompt: "",
+    lastRunPrompt: "",
 
     addMemory: (text, auto) => {
       const t = text.trim();

@@ -3,6 +3,8 @@ import { callOR, streamOR, type ORMessage } from "./openrouter";
 import { modelFor } from "./models";
 import { SYSTEM, INTERVIEWER_SYSTEM, EDITOR_SYSTEM, ADAPTER_SYSTEM, MARKET_SYSTEM } from "./roles";
 import { fallbackParse, summariseFiles, createFileStreamParser, parseEdits, applyEdits } from "./parse";
+import { lintLayout, issuesForPrompt, type LayoutIssue } from "./layoutLint";
+import { fetchPricing, buildEstimate } from "./estimate";
 import type { AgentQuestion } from "./types";
 import { resolveDepth } from "./router";
 import { verifyInSandbox } from "./sandbox";
@@ -234,7 +236,7 @@ async function* callRole(
  * force fast/deep. Each role runs on the best-value model for its job; reasoning stays opt-in.
  */
 export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> {
-  const { prompt, files, apiKey, keys = {}, localBaseUrls = {}, variant, reasoning, mode = "auto", template, interview, answered, planOnly, approvedPlan, ask } = req;
+  const { prompt, files, apiKey, keys = {}, localBaseUrls = {}, variant, reasoning, mode = "auto", template, interview, answered, planOnly, approvedPlan, ask, estimate, approvedEstimate } = req;
   const hasProject = Object.keys(files).length > 0;
   const depth = resolveDepth(mode, prompt, hasProject);
   const tpl = getTemplate(template);
@@ -344,6 +346,27 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
   // (fromTemplate=false) we keep just the plain scaffold so the seed's look can't anchor the design —
   // the coder builds fresh to the chosen style, still guided by the product's feature checklist.
   const baseFiles: FileMap = fresh ? { ...tpl.scaffold, ...(fromTemplate ? product!.files : {}) } : files;
+  // ── COST GATE ─────────────────────────────────────────────────────────────
+  // Placed HERE, immediately before the coder, because the coder is 88–99% of the bill (measured
+  // across real runs). A confirmation asked after generation would be theatre: the money is spent
+  // by then. Skipped for local models (free), when the user opted out, and once approved.
+  if (estimate !== false && !approvedEstimate && !hasProject && tgt.apiKey && /openrouter\.ai/.test(conn.baseUrl || "")) {
+    const pricing = await fetchPricing(tgt.apiKey, conn.baseUrl);
+    const est = buildEstimate({
+      shape: fromTemplate ? "template" : "scratch",
+      depth: depth === "fast" ? "fast" : "deep",
+      coderModel: pick("coder"),
+      reviewerModel: pick("reviewer"),
+      pricing,
+    });
+    if (est.priced) {
+      yield { type: "estimate", low: est.low, high: est.high, priced: est.priced, basis: est.basis, lines: est.lines };
+      yield { type: "done" };
+      return;
+    }
+    // Pricing unavailable → don't block the user behind a number we can't produce; just build.
+  }
+
   if (fresh) for (const [path, content] of Object.entries(baseFiles)) yield { type: "file", path, content };
   if (fromTemplate) yield { type: "status", role: "coder", message: `Starting from the ${product!.label} template…` };
 
@@ -603,6 +626,31 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
       }
     }
 
+    // ── LAYOUT LINT (deterministic) ───────────────────────────────────────────
+    // The LAYOUT rules in the coder prompt are guidance and land probabilistically. These defects are
+    // mechanical, so we check them in code: the missing-min-size family is repaired outright (adding
+    // the class cannot break a correct layout), and what can't be safely auto-fixed is collected as
+    // located facts for the debugger — which is far cheaper than paying a model to go find them.
+    let layoutIssues: LayoutIssue[] = [];
+    {
+      const lint = lintLayout(project);
+      if (lint.fixes.length) {
+        for (const [path, content] of Object.entries(lint.files)) {
+          if (content !== project[path]) {
+            touched.add(path);
+            yield { type: "file", path, content };
+          }
+        }
+        project = lint.files;
+        yield {
+          type: "status",
+          role: "orchestrator",
+          message: `Layout check: repaired ${lint.fixes.length} sizing defect(s) automatically.`,
+        };
+      }
+      layoutIssues = lint.issues;
+    }
+
     // The coder's own explanation of what it did (a real chat message, not just a status).
     if (narration) yield { type: "message", content: narration.slice(0, 1500) };
 
@@ -690,6 +738,52 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
       );
       project = { ...project, ...fix.files };
       Object.keys(fix.files).forEach((p) => touched.add(p));
+    }
+
+    // ── LAYOUT REPAIR (only what the lint could not fix itself) ───────────────
+    // One bounded, diff-based pass. The issues are already located (file:line + the reason), so the
+    // model spends its tokens fixing rather than searching. Skipped entirely when the lint found
+    // nothing — the common case once the auto-fixes have run.
+    if (layoutIssues.length) {
+      yield { type: "status", role: "debugger", message: `Fixing ${layoutIssues.length} layout defect(s)…` };
+      const lp = { raw: "", narration: "" };
+      yield* streamPatch(
+        {
+          model: pick("debugger"),
+          ...conn,
+          reasoning: "off",
+          messages: [
+            { role: "system", content: SYSTEM.debugger },
+            {
+              role: "user",
+              content:
+                `A deterministic layout linter found these defects. They are REAL and already located — ` +
+                `fix each one, changing nothing else.\n\nDEFECTS:\n${issuesForPrompt(layoutIssues)}\n\n` +
+                `CURRENT PROJECT:\n${summariseFiles(project)}`,
+            },
+          ],
+        },
+        lp,
+      );
+      const parsedL = parseEdits(lp.raw);
+      const appliedL = applyEdits(project, parsedL.patches, parsedL.fullFiles);
+      if (appliedL.changed.length) {
+        project = appliedL.files;
+        for (const path of appliedL.changed) {
+          touched.add(path);
+          yield { type: "file", path, content: project[path] };
+        }
+        // Re-lint to confirm rather than assume the edit worked.
+        const after = lintLayout(project);
+        yield {
+          type: "review",
+          ok: after.issues.length === 0,
+          notes:
+            after.issues.length === 0
+              ? "Layout defects fixed (re-checked)."
+              : `Still unresolved after the fix pass:\n${issuesForPrompt(after.issues)}`,
+        };
+      }
     }
 
     // ── COMPLETENESS pass (from-scratch builds) — the reviewer checks the app against the EXPECTED
