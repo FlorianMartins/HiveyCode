@@ -203,6 +203,36 @@ function findUnguardedMotion(files: FileMap): LayoutIssue[] {
   return [];
 }
 
+// ── Detect-only: a monolithic file ───────────────────────────────────────────────────────────────
+// Not a layout defect, but the same kind of mechanical, checkable one — and the module is where our
+// deterministic code checks live. Every seed/template ships as a single App.tsx, so an adapter that
+// only patches inherits that shape: a real Pro build came back as one 27 Ko App.tsx holding the whole
+// product. We report rather than auto-split, because moving components between files means rewriting
+// imports/exports and a mechanical guess there would break the build.
+const COMPONENT_RE = /^(?:export\s+)?(?:function\s+([A-Z]\w*)\s*\(|const\s+([A-Z]\w*)\s*(?::[^=]+)?=\s*(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>)/gm;
+
+function findMonolith(path: string, src: string): LayoutIssue[] {
+  const lines = src.split("\n").length;
+  if (lines <= 300) return [];
+  COMPONENT_RE.lastIndex = 0;
+  const names = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = COMPONENT_RE.exec(src))) names.add((m[1] || m[2]) as string);
+  if (names.size < 3) return []; // one long component is a different problem from a monolith
+  return [
+    {
+      file: path,
+      line: 1,
+      rule: "monolithic-file",
+      detail:
+        `${lines} lines holding ${names.size} components (${[...names].slice(0, 5).join(", ")}…). Split it: ` +
+        `one component per file under components/ with a named export and a Props interface, hooks into ` +
+        `hooks/, pure helpers into lib/, shared types into types.ts. App.tsx keeps only composition. ` +
+        `Emit every new file and fix every import.`,
+    },
+  ];
+}
+
 // Runs every rule over the JSX/TSX files of a project.
 export function lintLayout(files: FileMap): LintResult {
   const out: FileMap = { ...files };
@@ -214,7 +244,7 @@ export function lintLayout(files: FileMap): LintResult {
     const r = fixMinSizes(path, src);
     if (r.out !== src) out[path] = r.out;
     fixes.push(...r.fixes);
-    issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out));
+    issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out), ...findMonolith(path, r.out));
   }
   issues.push(...findUnguardedMotion(out));
   return { files: out, fixes, issues };

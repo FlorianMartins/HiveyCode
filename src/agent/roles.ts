@@ -165,6 +165,25 @@ export const EDITOR_SYSTEM =
   "• Change what the request needs; keep the rest working. Keep imports/types consistent — every " +
   "referenced symbol must still resolve after your change.\n";
 
+// File-level architecture. Every seed and template ships as ONE App.tsx (they are compact by design),
+// so an adapter that only patches inherits that monolith — a real Pro build came back as a single
+// 27 Ko App.tsx. Splitting is therefore stated as part of the WORK, not as a style preference.
+const ARCHITECTURE =
+  "PROJECT STRUCTURE — ship a codebase a team could maintain, not one long file:\n" +
+  "• ONE component per file under `components/`, named after the component (`components/StatCard.tsx`). " +
+  "Export it as a NAMED export; give it an explicit `Props` interface — no inline `any` prop bags.\n" +
+  "• `App.tsx` is composition ONLY: layout, routing/tab state, and wiring children together. If it " +
+  "exceeds ~150 lines you have not split enough.\n" +
+  "• NO file over ~250 lines. When one grows past that, extract the next cohesive piece into its own " +
+  "file. A 500-line component is a bug report waiting to happen.\n" +
+  "• Reusable stateful logic → `hooks/useX.ts`. Pure helpers (formatting, sorting, filtering, maths) → " +
+  "`lib/`. Shared TypeScript types → `types.ts`. Mock/seed data → `lib/data.ts`, never inline in a " +
+  "component.\n" +
+  "• If you are handed a single-file template, SPLITTING IT UP IS PART OF THE JOB. Do not preserve a " +
+  "monolith just because that is how it arrived — carve it into the structure above as you adapt it.\n" +
+  "• Every import must resolve to a file you actually emit. Splitting without emitting the new files, " +
+  "or leaving a stale import behind, breaks the build — re-check imports after every extraction.\n";
+
 // Concrete, checkable LAYOUT rules. The design prompt below is strong on aesthetics (palette,
 // typography, atmosphere) but models still ship apps that *look* broken for mechanical reasons:
 // a control absolutely positioned on top of a textarea, a fixed header covering the first row,
@@ -216,6 +235,7 @@ export const ADAPTER_SYSTEM =
   "Also: rewrite all copy/branding/mock data to fit, ADD the sections & features the request needs " +
   "(fully wired — real state, real interactions, NO dead buttons, NO lorem, NO TODO/stubs), and REMOVE " +
   "parts that don't belong.\n" +
+  ARCHITECTURE +
   LAYOUT +
   "OUTPUT — choose PER FILE to stay token-efficient WITHOUT compromising quality:\n" +
   '• A file that only needs small tweaks → <edit path="…"> SEARCH/REPLACE patches, SEARCH copied ' +
@@ -305,6 +325,7 @@ export const SYSTEM: Record<Role, string> = {
     "• This is usually a FRONT-ONLY browser app with NO backend you control — do NOT invent server-side " +
     "security code (HTTP headers like CSP/X-Frame-Options, server rate-limiting, databases); those belong " +
     "to the deployment host, not the generated app.\n" +
+    ARCHITECTURE +
     LAYOUT +
     PRECISION +
     FILE_FORMAT,
