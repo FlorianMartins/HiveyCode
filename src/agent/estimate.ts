@@ -36,7 +36,8 @@ export interface Estimate {
 // ── Token profiles ───────────────────────────────────────────────────────────────────────────────
 // Measured on real generations (dashboard / e-commerce / kanban), recorded rather than estimated:
 //
-//   template path  coder   ~5.8k prompt / 28–32k completion    reviewer  4.5–18k / 0.5–1.6k
+//   template path  coder   ~6-10k prompt / 12–32k completion   reviewer  4.5–18k / 0.5–1.6k
+//                  (12k = diff/patch sub-path, 32k = full-file rewrite; both are real)
 //   from scratch   coder  19–52k prompt / 34–102k completion   reviewer  3–32k  / 0.3–0.7k
 //
 // The ranges are wide because they genuinely are — a kanban costs twice a dashboard. We surface a
@@ -50,7 +51,11 @@ interface Profile {
 
 const PROFILES: Record<Shape, Profile> = {
   template: {
-    coder: { prompt: [5_000, 8_000], completion: [26_000, 32_000] },
+    // The low bound covers the DIFF sub-path: when the template fits well, the coder emits
+    // search/replace patches (~12k completion) instead of rewriting whole files (~30k). Measured at
+    // $0.388 on Opus where a [26k, 32k] profile had predicted $0.69 minimum — a ~1.8x over-estimate.
+    // Over-predicting is the safer error, but scaring a user off a $0.39 build is still a real cost.
+    coder: { prompt: [5_000, 10_000], completion: [11_000, 32_000] },
     reviewer: { prompt: [4_000, 20_000], completion: [400, 1_800] },
   },
   scratch: {
