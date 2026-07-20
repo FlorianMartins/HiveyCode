@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore, type EstimateData } from "@/store/useStore";
+import type { DesignDirection } from "@/agent/types";
+import { designToRequirements } from "@/agent/design";
 import { useAgent } from "@/hooks/useAgent";
 import { InputControls } from "./InputControls";
 import { UsageMeter } from "./UsageMeter";
@@ -18,7 +20,7 @@ export function Chat() {
   const { chat, running, paused, setPaused, runtimeError, selection, setSelection, resumable, setResumable, askMode } = useStore();
   const restoreRedo = useStore((s) => s.restoreRedo);
   const undoRestore = useStore((s) => s.undoRestore);
-  const { sendPrompt, answerQuestions, approveEstimate, declineEstimate, fixError, resumeRun } = useAgent();
+  const { sendPrompt, answerQuestions, chooseDesign, approveEstimate, declineEstimate, fixError, resumeRun } = useAgent();
   const t = useT();
   const [input, setInput] = useState("");
   const [composerH, setComposerH] = usePersistentNumber("hivey.ui.composerH", 150); // resizable input height
@@ -88,6 +90,9 @@ export function Chat() {
                 <Markdown>{m.content}</Markdown>
                 {m.questions && i === chat.length - 1 && !running && (
                   <QuestionsPanel questions={m.questions} onSubmit={answerQuestions} />
+                )}
+                {m.designs && i === chat.length - 1 && !running && (
+                  <DesignPanel directions={m.designs} onPick={chooseDesign} />
                 )}
                 {m.estimate && i === chat.length - 1 && !running && (
                   <EstimatePanel data={m.estimate} onApprove={approveEstimate} onDecline={declineEstimate} />
@@ -381,6 +386,72 @@ function ChoicesCard({ content }: { content: string }) {
 
 // Guided (Hivey Smart) mode: clickable options (design directions shown as visual thumbnails), plus
 // MULTIPLE custom answers per question (a "+" list). The user picks/adds, then builds — or lets Smart decide.
+// Design checkpoint. The mockup is rendered LOCALLY from the returned tokens — that is what makes
+// showing three directions cheap enough to be worth doing before the build.
+function DesignPanel({
+  directions,
+  onPick,
+}: {
+  directions: DesignDirection[];
+  onPick: (requirements: string, label: string) => void;
+}) {
+  const pad = (d: DesignDirection) => (d.density === "compact" ? 8 : d.density === "airy" ? 16 : 12);
+  return (
+    <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {directions.map((d) => (
+        <div key={d.id} className="min-w-0 overflow-hidden rounded-xl border border-border">
+          {/* Miniature of the real thing: background, surface, text, muted, accent, radius, fonts. */}
+          <div style={{ background: d.bg, padding: pad(d), fontFamily: d.font }} aria-hidden>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: pad(d) }}>
+              <div style={{ width: 10, height: 10, borderRadius: d.radius / 3, background: d.accent }} />
+              <div
+                style={{ color: d.text, fontFamily: d.headingFont, fontSize: 11, fontWeight: 600 }}
+                className="truncate"
+              >
+                {d.name}
+              </div>
+            </div>
+            <div style={{ background: d.surface, borderRadius: d.radius, padding: pad(d) }}>
+              <div style={{ color: d.text, fontSize: 10, fontWeight: 600, marginBottom: 3 }}>Revenue</div>
+              <div style={{ color: d.muted, fontSize: 9, marginBottom: pad(d) }}>+12.4% this month</div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 26, marginBottom: pad(d) }}>
+                {[40, 70, 45, 90, 60].map((h, k) => (
+                  <div
+                    key={k}
+                    style={{ flex: 1, height: `${h}%`, background: d.accent, borderRadius: Math.min(3, d.radius / 4), opacity: 0.55 + k * 0.09 }}
+                  />
+                ))}
+              </div>
+              <div
+                style={{
+                  background: d.accent,
+                  color: d.accentText,
+                  borderRadius: d.radius / 1.5,
+                  fontSize: 9,
+                  fontWeight: 600,
+                  padding: "4px 8px",
+                  textAlign: "center",
+                }}
+              >
+                View report
+              </div>
+            </div>
+          </div>
+          <div className="bg-surface/60 p-2.5">
+            <p className="text-xs leading-snug text-muted">{d.personality}</p>
+            <button
+              onClick={() => onPick(designToRequirements(d), d.name)}
+              className="mt-2 w-full shrink-0 rounded-lg bg-accent px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            >
+              Use {d.name}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // The cost gate. Shown BEFORE any code is generated, so declining costs the user nothing.
 function EstimatePanel({
   data,

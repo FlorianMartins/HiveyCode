@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { FileMap, HiveyVariant, AgentQuestion, SecurityFinding } from "@/agent/types";
+import type { FileMap, HiveyVariant, AgentQuestion, DesignDirection, SecurityFinding } from "@/agent/types";
 import { applyUi, loadUi } from "@/lib/uiTheme";
 import { applyThemePalette, loadSavedPalette } from "@/lib/themeSync";
 
@@ -21,6 +21,7 @@ export interface ChatMsg {
   reasoning?: boolean; // true = live model-reasoning block (collapsible; not persisted)
   step?: string; // a pipeline step (plan / features / review…) — rendered collapsed by default
   questions?: AgentQuestion[]; // guided mode: clarifying questions to render interactively
+  designs?: DesignDirection[]; // design checkpoint: directions to pick from before building
   estimate?: EstimateData; // cost gate: what the build will cost, awaiting the user's go-ahead
   error?: boolean; // true = an error report (rendered with a red style + an always-visible copy button)
 }

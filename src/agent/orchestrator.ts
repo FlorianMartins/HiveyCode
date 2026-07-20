@@ -1,10 +1,11 @@
 import type { AgentEvent, AgentRequest, FileMap, Role } from "./types";
 import { callOR, streamOR, type ORMessage } from "./openrouter";
 import { modelFor } from "./models";
-import { SYSTEM, INTERVIEWER_SYSTEM, EDITOR_SYSTEM, ADAPTER_SYSTEM, MARKET_SYSTEM } from "./roles";
+import { SYSTEM, INTERVIEWER_SYSTEM, EDITOR_SYSTEM, ADAPTER_SYSTEM, MARKET_SYSTEM, DESIGN_SYSTEM } from "./roles";
 import { fallbackParse, summariseFiles, createFileStreamParser, parseEdits, applyEdits } from "./parse";
 import { lintLayout, issuesForPrompt, type LayoutIssue } from "./layoutLint";
 import { fetchPricing, buildEstimate } from "./estimate";
+import { parseDirections } from "./design";
 import type { AgentQuestion } from "./types";
 import { resolveDepth } from "./router";
 import { verifyInSandbox } from "./sandbox";
@@ -236,7 +237,10 @@ async function* callRole(
  * force fast/deep. Each role runs on the best-value model for its job; reasoning stays opt-in.
  */
 export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> {
-  const { prompt, files, apiKey, keys = {}, localBaseUrls = {}, variant, reasoning, mode = "auto", template, interview, answered, planOnly, approvedPlan, ask, estimate, approvedEstimate } = req;
+  const { prompt: rawPrompt, files, apiKey, keys = {}, localBaseUrls = {}, variant, reasoning, mode = "auto", template, interview, answered, planOnly, approvedPlan, ask, estimate, approvedEstimate, design, chosenDesign } = req;
+  // The chosen design travels with the request as firm requirements, so every downstream role (coder,
+  // adapter, debugger) sees it without needing its own plumbing.
+  const prompt = chosenDesign ? `${rawPrompt}\n\n${chosenDesign}` : rawPrompt;
   const hasProject = Object.keys(files).length > 0;
   const depth = resolveDepth(mode, prompt, hasProject);
   const tpl = getTemplate(template);
@@ -346,6 +350,43 @@ export async function* runAgents(req: AgentRequest): AsyncGenerator<AgentEvent> 
   // (fromTemplate=false) we keep just the plain scaffold so the seed's look can't anchor the design —
   // the coder builds fresh to the chosen style, still guided by the product's feature checklist.
   const baseFiles: FileMap = fresh ? { ...tpl.scaffold, ...(fromTemplate ? product!.files : {}) } : files;
+  // ── DESIGN CHECKPOINT ───────────────────────────────────────────────────────
+  // The interview picked a style by NAME; this shows what that name actually looks like, plus two
+  // alternatives, rendered by the UI from the returned tokens. One small JSON call — deliberately
+  // placed before the cost gate, because choosing the look is the cheap decision and it must happen
+  // before the expensive one.
+  if (design !== false && !chosenDesign && !hasProject && tgt.apiKey) {
+    try {
+      yield { type: "status", role: "planner", message: "Sketching design directions…" };
+      // Deliberately the CODER's model, not the cheap opener: aesthetic judgement is exactly what the
+      // strong model is good at, the output is ~900 tokens so it costs cents, and the model that
+      // PROPOSES the look is then the one that BUILDS it — no gap between promise and delivery.
+      const raw = yield* callRole("planner", {
+        model: pick("coder"),
+        ...conn,
+        maxTokens: 900,
+        messages: [
+          { role: "system", content: DESIGN_SYSTEM },
+          { role: "user", content: rawPrompt },
+        ],
+      });
+      const directions = parseDirections(raw);
+      if (directions.length >= 2) {
+        yield {
+          type: "design-options",
+          intro: "Pick the look before I build it — nothing has been generated yet.",
+          directions,
+        };
+        yield { type: "done" };
+        return;
+      }
+      // Fewer than two usable directions (bad JSON, or palettes that failed the contrast check) →
+      // don't show a checkpoint with nothing to choose between; just carry on.
+    } catch {
+      // Design call failed → building without the checkpoint is better than not building.
+    }
+  }
+
   // ── COST GATE ─────────────────────────────────────────────────────────────
   // Placed HERE, immediately before the coder, because the coder is 88–99% of the bill (measured
   // across real runs). A confirmation asked after generation would be theatre: the money is spent

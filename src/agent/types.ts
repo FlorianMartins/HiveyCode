@@ -13,6 +13,24 @@ export interface AgentQuestion {
   design?: boolean; // a visual STYLE question → the UI shows design-direction thumbnails
 }
 
+// A concrete, previewable design direction. The UI renders a mockup from these tokens locally, which
+// is why they are tokens and not markup — three directions cost one small call, not three mockups.
+export interface DesignDirection {
+  id: string;
+  name: string;
+  personality: string;
+  bg: string;
+  surface: string;
+  text: string;
+  muted: string;
+  accent: string;
+  accentText: string;
+  font: string;
+  headingFont: string;
+  radius: number;
+  density: "compact" | "regular" | "airy";
+}
+
 // A single step the orchestrator streams back to the UI (NDJSON, one JSON per line).
 export type AgentEvent =
   | { type: "status"; role: Role | "orchestrator"; message: string }
@@ -26,6 +44,9 @@ export type AgentEvent =
   | { type: "review"; ok: boolean; notes: string }
   | { type: "usage"; role: Role; model: string; prompt: number; completion: number; cost: number } // per-call token/cost
   | { type: "error"; message: string }
+  // Design checkpoint: concrete directions to look at BEFORE the expensive build. The run stops here;
+  // the client resumes with `chosenDesign`.
+  | { type: "design-options"; intro: string; directions: DesignDirection[] }
   // Cost gate: what this build is expected to cost, emitted BEFORE the coder runs so the user can
   // decline. The run stops after this; the client resumes with `approvedEstimate: true`.
   | {
@@ -52,6 +73,8 @@ export interface AgentRequest {
   answered?: boolean; // the guided clarifying questions WERE answered → honour those choices over the template
   planOnly?: boolean; // plan-first: produce the plan then STOP (await user approval before coding)
   approvedPlan?: string; // a user-approved/edited plan → skip the planner, hand this to the coder
+  design?: boolean; // false = skip the design checkpoint (user opted out of being asked)
+  chosenDesign?: string; // the design direction the user picked, serialised as firm requirements
   estimate?: boolean; // false = skip the cost gate entirely (user opted out of being asked)
   approvedEstimate?: boolean; // the user saw the cost estimate and accepted it → build now
   ask?: boolean; // ASK mode: just ANSWER a question about the project (no build, no file changes)

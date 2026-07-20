@@ -79,6 +79,11 @@ export function useAgent() {
         }
         break;
       }
+      case "design-options":
+        // Design checkpoint — the run stopped before anything was generated. Render the directions
+        // and wait; the user is choosing a look, not paying for one.
+        s.pushChat({ role: "assistant", content: ev.intro, designs: ev.directions });
+        break;
       case "estimate":
         // Cost gate — the run stopped BEFORE the coder. Show what it will cost and wait for a
         // decision; nothing has been spent on code generation at this point.
@@ -120,6 +125,8 @@ export function useAgent() {
       skipUserEcho?: boolean;
       estimate?: boolean;
       approvedEstimate?: boolean;
+      design?: boolean;
+      chosenDesign?: string;
     },
   ) => {
     const s = useStore.getState();
@@ -176,6 +183,8 @@ export function useAgent() {
           ask: askMode,
           estimate: opts?.estimate,
           approvedEstimate: opts?.approvedEstimate,
+          design: opts?.design,
+          chosenDesign: opts?.chosenDesign,
         }),
       });
       if (!res.body) throw new Error("No response stream");
@@ -234,6 +243,14 @@ export function useAgent() {
     const base = s.pendingPrompt || "";
     const combined = `${base}\n\n=== FIRM REQUIREMENTS (the user answered the clarifying questions) ===\nThe finished app MUST match ALL of these choices EXACTLY — especially the chosen VISUAL STYLE / design direction and the selected features. Treat them as the authoritative spec; do not substitute your own defaults where the user made a choice.\n${answerText}`;
     runRequest(displaySummary, combined, { interview: false, answered: true });
+  };
+
+  // The user picked a design direction → replay the same request with that look locked in. The cost
+  // gate still runs after this, so choosing a look never commits them to paying.
+  const chooseDesign = (requirements: string, label: string) => {
+    const st = useStore.getState();
+    if (st.running) return;
+    runRequest(`Design: ${label}`, st.lastRunPrompt, { interview: false, answered: true, chosenDesign: requirements });
   };
 
   // The user accepted the estimated cost → replay the SAME request verbatim, past the gate. Replaying
@@ -395,5 +412,5 @@ export function useAgent() {
     st.setPendingBuild(null);
   };
 
-  return { runRequest, sendPrompt, answerQuestions, approveEstimate, declineEstimate, fixError, fixIssue, scanSecurity, fixFinding, fixFindingsBatch, deepScan, approvePlan, cancelPlan, resumeRun };
+  return { runRequest, sendPrompt, answerQuestions, chooseDesign, approveEstimate, declineEstimate, fixError, fixIssue, scanSecurity, fixFinding, fixFindingsBatch, deepScan, approvePlan, cancelPlan, resumeRun };
 }
