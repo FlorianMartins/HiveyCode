@@ -418,7 +418,19 @@ function DesignPanel({
                 {[40, 70, 45, 90, 60].map((h, k) => (
                   <div
                     key={k}
-                    style={{ flex: 1, height: `${h}%`, background: d.accent, borderRadius: Math.min(3, d.radius / 4), opacity: 0.55 + k * 0.09 }}
+                    style={{
+                      flex: 1,
+                      height: `${h}%`,
+                      background: d.accent,
+                      borderRadius: Math.min(3, d.radius / 4),
+                      opacity: 0.55 + k * 0.09,
+                      transformOrigin: "bottom",
+                      // The card demonstrates its own motion setting instead of merely naming it.
+                      animation:
+                        d.motion === "minimal"
+                          ? undefined
+                          : `hcRise ${d.motion === "lively" ? 320 : 220}ms ease-out ${k * (d.motion === "lively" ? 50 : 35)}ms both`,
+                    }}
                   />
                 ))}
               </div>
@@ -439,6 +451,15 @@ function DesignPanel({
           </div>
           <div className="bg-surface/60 p-2.5">
             <p className="text-xs leading-snug text-muted">{d.personality}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+                {d.density}
+              </span>
+              <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">
+                motion: {d.motion}
+              </span>
+              <span className="min-w-0 truncate text-[10px] text-muted">{d.headingFont}</span>
+            </div>
             <button
               onClick={() => onPick(designToRequirements(d), d.name)}
               className="mt-2 w-full shrink-0 rounded-lg bg-accent px-2 py-1.5 text-xs font-medium text-white hover:opacity-90"

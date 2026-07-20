@@ -172,6 +172,37 @@ function findFixedBars(path: string, src: string): LayoutIssue[] {
   return issues;
 }
 
+// ── Detect-only: motion with no reduced-motion escape hatch ──────────────────────────────────────
+// We now instruct the coder to animate, which makes this a defect we created the conditions for: a
+// user with vestibular sensitivity has `prefers-reduced-motion: reduce` set and expects it honoured.
+// Checked across the WHOLE project (not per file) because the media query usually lives in the CSS
+// while the animations live in components.
+function findUnguardedMotion(files: FileMap): LayoutIssue[] {
+  const all = Object.entries(files);
+  const guarded = all.some(([, src]) => typeof src === "string" && /prefers-reduced-motion/.test(src));
+  if (guarded) return [];
+
+  for (const [path, src] of all) {
+    if (typeof src !== "string") continue;
+    // Only genuine animation. A bare `transition duration-200` on a hover tint is too mild to be worth
+    // a paid debugger pass, and flagging it would fire on nearly every app — noise that costs money.
+    const m = /(@keyframes\s|animate-\[|animate-(spin|ping|pulse|bounce)\b|animation:\s*[a-z]|transition:\s*(all|transform))/.exec(src);
+    if (!m) continue;
+    return [
+      {
+        file: path,
+        line: lineOf(src, m.index),
+        rule: "motion-without-reduced-motion",
+        detail:
+          "the project animates but never references `prefers-reduced-motion`. Add a " +
+          "`@media (prefers-reduced-motion: reduce)` block that collapses animations/transitions to " +
+          "near-zero duration (or opacity-only). Accessibility requirement, not an option.",
+      },
+    ];
+  }
+  return [];
+}
+
 // Runs every rule over the JSX/TSX files of a project.
 export function lintLayout(files: FileMap): LintResult {
   const out: FileMap = { ...files };
@@ -185,6 +216,7 @@ export function lintLayout(files: FileMap): LintResult {
     fixes.push(...r.fixes);
     issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out));
   }
+  issues.push(...findUnguardedMotion(out));
   return { files: out, fixes, issues };
 }
 

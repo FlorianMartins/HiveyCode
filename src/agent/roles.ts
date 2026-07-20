@@ -96,12 +96,16 @@ export const DESIGN_SYSTEM =
   "• Pick fonts from web-safe/Google stacks that genuinely suit the mood (e.g. Inter, IBM Plex Sans, " +
   "Georgia, JetBrains Mono, Playfair Display, Space Grotesk).\n" +
   "• `radius` in px (0 = sharp/brutalist, 16+ = soft/friendly). `density` is one of compact|regular|airy.\n" +
+  "• `motion` is how alive the interface feels — one of: minimal (state changes only, no entrances), " +
+  "subtle (quick fades/lifts, staggered lists — the professional default), lively (springy presses, " +
+  "richer entrances, animated numbers). Modernity comes from motion being PURPOSEFUL, not abundant; " +
+  "pick what suits the product, and prefer `subtle` when no character was requested.\n" +
   "• `name` is 1-3 evocative words. `personality` is ONE short sentence naming the feeling and who " +
   "it suits — the user reads this to choose, so make it concrete, not marketing filler.\n" +
   "Output JSON ONLY, no prose, no code fence:\n" +
   '{"directions":[{"id":"a","name":"…","personality":"…","bg":"#…","surface":"#…","text":"#…",' +
   '"muted":"#…","accent":"#…","accentText":"#…","font":"Inter","headingFont":"Inter","radius":12,' +
-  '"density":"regular"}]}';
+  '"density":"regular","motion":"subtle"}]}';
 
 export const SECURITY_SYSTEM =
   "You are a DEFENSIVE application-security auditor. Review the given project files and report concrete, REAL " +
@@ -263,8 +267,26 @@ export const SYSTEM: Record<Role, string> = {
     "• A cohesive theme with real atmosphere: a comfortable default (dark or light), layered surfaces, " +
     "soft shadows/borders, tasteful gradients/accents — commit fully to the chosen visual direction.\n" +
     "• Fully responsive (mobile → desktop) and keyboard-accessible (labels, focus states, contrast).\n" +
-    "• Micro-polish: hover/active/focus states, smooth transitions, subtle entrance animations, " +
-    "skeletons for loading. Icons where they help.\n" +
+    "• MOTION & MODERNITY — a static interface reads as dated, so the app must feel alive. Motion is " +
+    "FELT, not watched: quick, purposeful, never blocking. Concretely:\n" +
+    "  – Durations: 120-180ms for micro-interactions (hover, press, focus), 200-300ms for entrances " +
+    "and layout changes. Never exceed 400ms — slow animation feels broken, not elegant.\n" +
+    "  – Easing: ease-out for things arriving, ease-in-out for state changes. Never linear.\n" +
+    "  – Animate `transform` and `opacity` ONLY (GPU-composited). Never animate width/height/top/left/" +
+    "margin — it forces layout on every frame and visibly stutters.\n" +
+    "  – Entrances: a subtle fade + translateY(4-8px). For lists, stagger children by 30-50ms so " +
+    "content arrives with rhythm instead of all at once.\n" +
+    "  – Feedback on every interactive element: hover lift or tint, active/press scale ~0.97, an " +
+    "animated focus ring. A control that does not react to the cursor feels dead.\n" +
+    "  – Loading: skeleton placeholders shaped like the real content, not a centred spinner. " +
+    "Transition state changes rather than snapping between them.\n" +
+    "  – ALWAYS honour `prefers-reduced-motion: reduce` — collapse animation to near-zero duration or " +
+    "opacity-only. This is an accessibility requirement, not an option.\n" +
+    "• Contemporary patterns where they fit: sticky header with a backdrop blur, toast notifications, " +
+    "optimistic UI updates, smart empty states, keyboard shortcuts. These are what separate a 2026 " +
+    "product from a 2015 template — but they must serve the task, never perform for their own sake.\n" +
+    "• Micro-polish: hover/active/focus states everywhere, skeletons for loading. Icons where they " +
+    "help.\n" +
     "• Prefer a few well-crafted components over a wall of unstyled markup. Never leave default " +
     "browser styling for primary UI.\n" +
     "• Modern & signature: aim beyond a generic CRUD look — give the app ONE or TWO tasteful signature " +

@@ -75,6 +75,9 @@ export function parseDirections(raw: string): DesignDirection[] {
     if (contrastRatio(accentText, accent) < 3) continue;
 
     const density = o.density === "compact" || o.density === "airy" ? o.density : "regular";
+    // "subtle" is the professional default: present enough to feel current, quiet enough to stay out
+    // of the way. Anything unrecognised falls back to it rather than to no motion at all.
+    const motion = o.motion === "minimal" || o.motion === "lively" ? o.motion : "subtle";
     const radiusRaw = Number(o.radius);
     out.push({
       id: String(o.id ?? out.length + 1).slice(0, 8) || String(out.length + 1),
@@ -90,6 +93,7 @@ export function parseDirections(raw: string): DesignDirection[] {
       headingFont: String(o.headingFont ?? o.font ?? "Inter").slice(0, 60),
       radius: Number.isFinite(radiusRaw) ? Math.min(32, Math.max(0, Math.round(radiusRaw))) : 12,
       density,
+      motion,
     });
     if (out.length === 3) break;
   }
@@ -99,6 +103,15 @@ export function parseDirections(raw: string): DesignDirection[] {
 // ── Handing the choice to the coder ──────────────────────────────────────────────────────────────
 // Serialised as an explicit, non-negotiable spec. The coder is otherwise very willing to drift back
 // to its own defaults, which would make the whole checkpoint pointless.
+const MOTION_SPEC: Record<DesignDirection["motion"], string> = {
+  minimal:
+    "state changes only (hover/focus/active), 120-150ms ease-out, no entrance animations. Restraint is the point.",
+  subtle:
+    "quick fades + translateY(4-8px) entrances, 30-50ms stagger on lists, hover lift and ~0.97 press scale, 150-250ms.",
+  lively:
+    "richer entrances, springy press feedback, animated counters/progress, 200-300ms — energetic but never blocking.",
+};
+
 export function designToRequirements(d: DesignDirection): string {
   return (
     `=== DESIGN DIRECTION (chosen by the user — NON-NEGOTIABLE) ===\n` +
@@ -115,6 +128,8 @@ export function designToRequirements(d: DesignDirection): string {
     `• corner radius: ${d.radius}px, applied consistently\n` +
     `• body font: ${d.font}; headings: ${d.headingFont} (load them, don't assume availability)\n` +
     `• density: ${d.density}\n` +
+    `• motion: ${d.motion} — ${MOTION_SPEC[d.motion]}\n` +
+    `Animate \`transform\` and \`opacity\` only, and always honour \`prefers-reduced-motion: reduce\`.\n` +
     `The finished app MUST look like this direction at a glance. Every surface, button, input and ` +
     `border derives from these tokens.`
   );

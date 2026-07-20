@@ -29,6 +29,7 @@ export interface DesignDirection {
   headingFont: string;
   radius: number;
   density: "compact" | "regular" | "airy";
+  motion: "subtle" | "lively" | "minimal"; // how much the interface moves — part of how modern it feels
 }
 
 // A single step the orchestrator streams back to the UI (NDJSON, one JSON per line).

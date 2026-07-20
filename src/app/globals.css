@@ -135,9 +135,26 @@ body {
     --hvAngle: 360deg;
   }
 }
+/* Entrance used by the design-checkpoint preview bars, so each card demonstrates its own motion
+   setting rather than only naming it. transform/opacity only — no layout work per frame. */
+@keyframes hcRise {
+  from {
+    opacity: 0;
+    transform: scaleY(0.55);
+  }
+  to {
+    opacity: inherit;
+    transform: scaleY(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .neon::before {
     animation: none;
+  }
+  /* The preview must not animate for users who asked for less motion — the same rule we require of
+     the apps we generate applies to us. */
+  [style*="hcRise"] {
+    animation: none !important;
   }
 }
 
