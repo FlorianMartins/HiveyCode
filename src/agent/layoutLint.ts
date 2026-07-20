@@ -233,6 +233,44 @@ function findMonolith(path: string, src: string): LayoutIssue[] {
   ];
 }
 
+// ── Detect-only: a button wired to nothing ───────────────────────────────────────────────────────
+// The coder prompt forbids dead buttons and the LLM reviewer is asked to hunt them, but it proved
+// unreliable: in one Pro build it caught a dead mobile-menu toggle while missing four dead items in a
+// user dropdown right next to it. Whether a <button> carries a handler is decidable from the markup,
+// so it should not depend on a model noticing.
+//
+// Uses the same brace/quote-aware tag scan as the overlap rule: a naive regex stops at the `>` inside
+// `onClick={() => …}` and would report every correctly-wired button as dead.
+const BUTTON_RE = /<button\b/gi;
+
+function findDeadButtons(path: string, src: string): LayoutIssue[] {
+  const issues: LayoutIssue[] = [];
+  BUTTON_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  const dead: number[] = [];
+  while ((m = BUTTON_RE.exec(src))) {
+    const tag = openingTag(src, m.index);
+    // Anything that can make it act: a handler, a form submit/reset, or props spread in from a parent
+    // (which may well carry onClick — too uncertain to call dead).
+    if (/\bon[A-Z]\w*\s*=/.test(tag)) continue;
+    if (/\btype\s*=\s*[{"']?\s*(submit|reset)/.test(tag)) continue;
+    if (/\{\s*\.\.\./.test(tag)) continue;
+    if (/\bdisabled\b/.test(tag)) continue; // deliberately inert
+    dead.push(lineOf(src, m.index));
+  }
+  if (!dead.length) return issues;
+  issues.push({
+    file: path,
+    line: dead[0],
+    rule: "dead-button",
+    detail:
+      `${dead.length} <button> with no handler (line${dead.length > 1 ? "s" : ""} ${dead.slice(0, 6).join(", ")}). ` +
+      `Wire each one to real behaviour, or render it as non-interactive markup if it is decorative. ` +
+      `A control that looks clickable and does nothing reads as a broken app.`,
+  });
+  return issues;
+}
+
 // Runs every rule over the JSX/TSX files of a project.
 export function lintLayout(files: FileMap): LintResult {
   const out: FileMap = { ...files };
@@ -244,7 +282,7 @@ export function lintLayout(files: FileMap): LintResult {
     const r = fixMinSizes(path, src);
     if (r.out !== src) out[path] = r.out;
     fixes.push(...r.fixes);
-    issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out), ...findMonolith(path, r.out));
+    issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out), ...findMonolith(path, r.out), ...findDeadButtons(path, r.out));
   }
   issues.push(...findUnguardedMotion(out));
   return { files: out, fixes, issues };
