@@ -132,13 +132,31 @@ Node 18. Uses **npm** (not pnpm).
 src/
   agent/          orchestrator.ts (the loop), models.ts, roles.ts (prompts), parse.ts (file+patch),
                   openrouter.ts (BYOK calls + streaming + cache), sandbox.ts (runner), templates.ts,
-                  router.ts (depth), agentLoop.ts (OpenClaude tool-calling), terminal.ts, providers.ts
+                  router.ts (depth), harness.ts (reasoning kernel: seams, session log, events),
+                  agentLoop.ts (OpenClaude tool-calling, on the kernel), layoutLint.ts (deterministic
+                  layout review + the plugin that lints what the agent writes), terminal.ts, providers.ts
   app/            page.tsx, globals.css (theme tokens), api/{agent,run,unrar,deploy,terminal,mcp}
   components/     Chat, InputControls, Sandbox (Sandpack+Monaco+FileTree+Diff+History+Console+Terminal),
                   Editor, Landing, Topbar, SettingsDrawer, MemoryPanel, Popover, Splitter…
   hooks/useAgent.ts   the client stream consumer (applies events to the store)
   lib/            git.ts (real git in IndexedDB), importFiles.ts, uiPrefs.ts, uiTheme.ts, benchmarks.ts
   store/useStore.ts   Zustand store (everything client-side)
+tests/            node:test suite — `npm test` (compiles the pure agent modules to .test-build/)
 ```
+
+## Tests
+
+```sh
+npm test        # 84 tests, no new dependency
+npm run lint    # ESLint (next/core-web-vitals + @typescript-eslint)
+npm run typecheck
+```
+
+They cover the reasoning kernel (turns, steps, admission before a paid call, reversible plugins,
+streaming), the layout lint rule by rule **from both sides** — it fires on the defect and stays quiet
+on the correct version of the same markup, because a false positive costs a debugger pass on a file
+that was already fine — the patch parser's tolerances and the line where they must stop and report a
+failure instead of silently writing the wrong thing, the cost estimate, and the design gate's contrast
+rejections.
 
 See `../firefox-ai-sidebar/README.md` for the companion browser extension.

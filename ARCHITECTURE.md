@@ -64,6 +64,16 @@ patches, applied with `applyEdits()` (≈10× fewer output tokens than rewriting
 role. Reasoning is opt-out-by-default (was causing multi-minute stalls). Prompt caching + a 90 s idle
 timeout live in `openrouter.ts`.
 
+**Reasoning kernel** (`harness.ts`): the autonomous loop (`agentLoop.ts`) keeps only the mechanics —
+turns, steps, tool calls. Each step DERIVES its request from an ordered session log rather than from a
+messages array kept alongside it, so the transcript cannot drift from what was actually sent, and the
+UI renders from that same log (`streamTurn`). Policies attach from outside as listeners:
+`agent/pre-step` may rewrite a request or **reject** it (closing the turn having spent nothing),
+`tools/pre-execute` may deny a call, `tools/post-execute` may transform a result before the model sees
+it. That last seam is where the deterministic layout lint now runs on every file the agent writes —
+previously only the orchestrated path was linted. Same reasoning model as DeepSeek Harness (Cordis
+paradigm), implemented from scratch: no dependency, no DeepSeek API.
+
 **Execution truth** (`sandbox.ts` → runner): the tester runs a *real* `tsc`/`vitest` in the hardened
 container and feeds the real errors to the debugger — the pattern that makes OpenHands-class agents
 reliable. Missing-dependency errors are filtered (they resolve for the real preview).
