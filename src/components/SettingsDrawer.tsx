@@ -114,7 +114,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
           {/* Provider keys (like the sidebar) — use your own Anthropic/OpenAI/Google/… keys */}
           <section>
             <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">Provider keys (optional)</h3>
-            <p className="mb-2 text-[11px] text-muted">Add a provider's own key to use its models directly. Synced from the Hivey sidebar.</p>
+            <p className="mb-2 text-[11px] text-muted">Add a provider&apos;s own key to use its models directly. Synced from the Hivey sidebar.</p>
             <div className="space-y-2">
               {PROVIDERS.filter((p) => p.id !== "openrouter").map((p) => (
                 <div key={p.id} className="flex items-center gap-2">

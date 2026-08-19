@@ -1,5 +1,6 @@
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,10 @@ export async function POST(req: Request) {
     clean[p] = c;
   }
 
-  const id = Math.random().toString(36).slice(2, 10);
+  // The unguessable URL IS the access control here, so the id must come from a CSPRNG.
+  // Math.random() is a fast PRNG, not an unpredictable one: its state can be recovered from a
+  // handful of observed outputs, and every id it hands out is an observed output.
+  const id = randomBytes(8).toString("hex");
   const payload = JSON.stringify({ name: (body.name || "Shared project").slice(0, 80), files: clean, at: Date.now() });
   try {
     await mkdir(ROOT, { recursive: true });

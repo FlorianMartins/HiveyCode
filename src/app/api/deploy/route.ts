@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 200;
@@ -52,7 +53,10 @@ export async function POST(req: Request) {
   }
 
   // 2) Write the static assets under a random deploy id.
-  const id = Math.random().toString(36).slice(2, 10);
+  // The unguessable URL IS the access control here, so the id must come from a CSPRNG.
+  // Math.random() is a fast PRNG, not an unpredictable one: its state can be recovered from a
+  // handful of observed outputs, and every id it hands out is an observed output.
+  const id = randomBytes(8).toString("hex");
   const dir = path.join(DEPLOY_ROOT, id);
   try {
     for (const [rel, b64] of Object.entries(dist)) {

@@ -454,7 +454,7 @@ export function Terminal() {
               {copied ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
             </button>
           </div>
-          <p className="mt-1.5 text-[10px] text-muted/80">The dev server opens your browser automatically at {localUrl}. (A hosted app can't run your machine's server, so the live preview here is the in-app Preview tab.)</p>
+          <p className="mt-1.5 text-[10px] text-muted/80">The dev server opens your browser automatically at {localUrl}. (A hosted app can&apos;t run your machine&apos;s server, so the live preview here is the in-app Preview tab.)</p>
         </div>
       )}
       <div className="flex items-center gap-2 border-t border-border px-3 py-2">
