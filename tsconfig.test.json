@@ -1,0 +1,25 @@
+{
+  "//": "Test build. The app is bundled by Next, but node:test needs real files on disk, so the pure agent modules and their tests are compiled to .test-build/ as ESM and run there. Only modules with no runtime imports are included, which keeps the emitted specifiers resolvable without a loader.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-build",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "incremental": false,
+    "declaration": false,
+    "types": ["node"]
+  },
+  "include": [
+    "src/agent/harness.ts",
+    "src/agent/layoutLint.ts",
+    "src/agent/estimate.ts",
+    "src/agent/design.ts",
+    "src/agent/models.ts",
+    "src/agent/parse.ts",
+    "src/agent/types.ts",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

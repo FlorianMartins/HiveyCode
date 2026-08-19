@@ -21,11 +21,11 @@ import type { HiveyVariant, Role } from "./types";
 // <hivey:start>
 const MODELS: Record<HiveyVariant, Record<Role, string>> = {
   "hivey/free": {
-    "planner": "meta-llama/llama-3.3-70b-instruct:free",
-    "coder": "qwen/qwen3-coder:free",
-    "reviewer": "meta-llama/llama-3.3-70b-instruct:free",
-    "debugger": "qwen/qwen3-coder:free",
-    "tester": "qwen/qwen3-coder:free"
+    "planner": "nvidia/nemotron-3.5-lightning:free",
+    "coder": "poolside/laguna-s-2.1:free",
+    "reviewer": "nvidia/nemotron-3.5-lightning:free",
+    "debugger": "poolside/laguna-s-2.1:free",
+    "tester": "nvidia/nemotron-3.5-lightning:free"
   },
   "hivey": {
     "planner": "anthropic/claude-sonnet-5",
@@ -36,9 +36,9 @@ const MODELS: Record<HiveyVariant, Record<Role, string>> = {
   },
   "hivey/smart": {
     "planner": "anthropic/claude-sonnet-5",
-    "coder": "anthropic/claude-opus-4.8",
+    "coder": "anthropic/claude-opus-5",
     "reviewer": "anthropic/claude-sonnet-5",
-    "debugger": "anthropic/claude-opus-4.8",
+    "debugger": "anthropic/claude-opus-5",
     "tester": "anthropic/claude-haiku-4.5"
   }
 };

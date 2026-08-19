@@ -28,7 +28,9 @@ const API = "https://openrouter.ai/api/v1/models";
 const CHECK_ONLY = process.argv.includes("--check");
 
 // Experimental / dated / routing-only SKUs are never chosen automatically.
-const NOT_DEFAULT = /preview|-exp\b|experimental|-20\d{6}\b|multi-agent|deep-research/i;
+// ":batch" is the asynchronous batch SKU: cheaper because the answer comes back later, which
+// is fatal for a coder role that streams a file the user is watching appear.
+const NOT_DEFAULT = /preview|-exp\b|experimental|-20\d{6}\b|multi-agent|deep-research|:batch\b/i;
 
 // The "family stem" of a model id: drop version / size / date tokens, keep the descriptive name.
 // "anthropic/claude-opus-4.8" → "anthropic/claude-opus"; "qwen/qwen3-coder:free" → "qwen/qwen-coder".
@@ -118,7 +120,37 @@ function main(all) {
           notes.push(`🔧 ${variant}.${role}: ${cur} is GONE from the catalogue → ${alt.id}`);
           continue;
         }
-        notes.push(`⚠️  ${variant}.${role}: ${cur} is GONE and no ${vendor} replacement was found — fix by hand.`);
+
+        // 3) WIDEN beyond the vendor. Staying inside the vendor is the safe repair, but it only
+        // works while the vendor still ships something in that price class. When Meta and Qwen
+        // both withdrew their free tiers, every free role here kept a dead id and the whole Free
+        // preset answered HTTP 404 — a vendor-locked repair that repairs nothing is worse than
+        // an honest cross-vendor jump, because it looks like it worked.
+        const CODEY = /cod(e|er|ing)|devstral|laguna|starcoder/i;
+        const wide = all.filter(
+          (m) =>
+            !/^~/.test(m.id) &&                                     // moving alias: not a stable id to commit
+            isFreeId(m.id) === free &&
+            !NOT_DEFAULT.test(m.id) &&
+            (m.architecture?.output_modalities || ["text"]).includes("text"),
+        );
+        const maxCtx = Math.max(...wide.map((m) => m.context_length || 0), 1);
+        const newestAt = Math.max(...wide.map((m) => m.created || 0), 1);
+        const score = (m) => {
+          let sc = 2 * ((m.context_length || 0) / maxCtx) + 1.5 * ((m.created || 0) / newestAt);
+          // A coder must be able to code; a planner/reviewer/tester writes prose about code and is
+          // handicapped by a code-completion specialist, so the preference runs both ways.
+          if (CODEY.test(m.id)) sc += codeRole ? 5 : -4;
+          if (!free) sc -= Math.min(price(m) / 10, 2);              // among paid, don't pick the priciest by accident
+          return sc;
+        };
+        const any = wide.sort((x, y) => score(y) - score(x))[0];
+        if (any) {
+          merged[variant][role] = any.id;
+          notes.push(`🔧 ${variant}.${role}: ${cur} is GONE, no ${vendor} model left → ${any.id} (cross-vendor)`);
+          continue;
+        }
+        notes.push(`⚠️  ${variant}.${role}: ${cur} is GONE and nothing in the catalogue fits — fix by hand.`);
       }
 
       merged[variant][role] = cur;

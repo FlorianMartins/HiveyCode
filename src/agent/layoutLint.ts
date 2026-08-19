@@ -14,6 +14,7 @@
 // logic — the worst case is a redundant utility class.
 
 import type { FileMap } from "./types";
+import type { Harness, Plugin } from "./harness";
 
 export interface LayoutIssue {
   file: string;
@@ -291,4 +292,46 @@ export function lintLayout(files: FileMap): LintResult {
 // Compact, located brief for the debugger — facts it would otherwise have to spend tokens finding.
 export function issuesForPrompt(issues: LayoutIssue[]): string {
   return issues.map((i) => `- ${i.file}:${i.line} [${i.rule}] ${i.detail}`).join("\n");
+}
+
+/**
+ * Deterministic layout review of everything the agent writes.
+ *
+ * The orchestrated build path already lints its output, but files written by the autonomous
+ * agent went straight into the project unchecked — the same `min-h-0` omissions and dead
+ * buttons, with nothing to catch them. As a post-execute listener it costs no model call: the
+ * fix is applied, and anything not auto-fixable is appended to what the model reads next, so
+ * the agent sees its own mistake on the very next step instead of the user seeing it later.
+ */
+/** What a tool hands back to the loop; only the shape this plugin needs is declared here. */
+interface WriteOutcome {
+  output: string;
+  files: { path: string; content: string }[];
+}
+
+export function layoutLintPlugin(project: FileMap): Plugin {
+  return {
+    name: "layout-lint",
+    apply(ctx: Harness) {
+      ctx.on("tools/post-execute", async (v: any, next: any) => {
+        const outcome = v.result as WriteOutcome;
+        if (v.call.name !== "write_file" || !outcome?.files?.length) return next(v);
+
+        const written: FileMap = {};
+        for (const f of outcome.files) written[f.path] = f.content;
+        const lint = lintLayout(written);
+        if (!lint.fixes.length && !lint.issues.length) return next(v);
+
+        const files = outcome.files.map((f) => ({ path: f.path, content: lint.files[f.path] ?? f.content }));
+        for (const f of files) project[f.path] = f.content;
+
+        const notes = [
+          lint.fixes.length ? `Layout check auto-fixed: ${lint.fixes.join("; ")}` : "",
+          lint.issues.length ? `Layout problems you must fix:\n${issuesForPrompt(lint.issues)}` : "",
+        ].filter(Boolean).join("\n");
+
+        return next({ ...v, result: { ...outcome, files, output: `${outcome.output}\n${notes}` } });
+      }, 50);
+    },
+  };
 }
