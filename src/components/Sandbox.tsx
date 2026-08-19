@@ -626,7 +626,7 @@ function ProjectConsole() {
           <Trash2 size={13} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-[11.5px] leading-relaxed">
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-[11.5px] leading-relaxed min-w-0">
         {lines.length === 0 && (
           <div className="text-muted">No logs yet. Command output (build / install / test) and errors will appear here.</div>
         )}

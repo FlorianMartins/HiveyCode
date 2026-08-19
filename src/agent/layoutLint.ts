@@ -273,6 +273,44 @@ function findDeadButtons(path: string, src: string): LayoutIssue[] {
 }
 
 // Runs every rule over the JSX/TSX files of a project.
+
+// ── Comments are not markup ──────────────────────────────────────────────────────────────────────
+// Every detector below scans source text for tags, so a comment that MENTIONS a tag reads as one.
+// Found by running this lint against HiveyCode's own source: a comment explaining why a decorative
+// `<button>` had been replaced was itself reported as a dead `<button>` — the lint flagging the note
+// about the fix it had asked for. Comment bodies are blanked rather than removed so every offset,
+// and therefore every reported line number, stays exactly where it was.
+function blankComments(src: string): string {
+  let out = "";
+  let i = 0;
+  let quote: string | null = null;
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\") { out += next ?? ""; i += 2; continue; }
+      if (c === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; out += c; i++; continue; }
+    if (c === "/" && next === "/") {
+      while (i < src.length && src[i] !== "\n") { out += " "; i++; }
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      out += "  "; i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) { out += src[i] === "\n" ? "\n" : " "; i++; }
+      if (i < src.length) { out += "  "; i += 2; }
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
 export function lintLayout(files: FileMap): LintResult {
   const out: FileMap = { ...files };
   const fixes: string[] = [];
@@ -283,7 +321,9 @@ export function lintLayout(files: FileMap): LintResult {
     const r = fixMinSizes(path, src);
     if (r.out !== src) out[path] = r.out;
     fixes.push(...r.fixes);
-    issues.push(...findOverlaps(path, r.out), ...findFixedBars(path, r.out), ...findMonolith(path, r.out), ...findDeadButtons(path, r.out));
+    // Detectors read the comment-free view; the auto-fixer keeps working on the real source.
+    const scan = blankComments(r.out);
+    issues.push(...findOverlaps(path, scan), ...findFixedBars(path, scan), ...findMonolith(path, scan), ...findDeadButtons(path, scan));
   }
   issues.push(...findUnguardedMotion(out));
   return { files: out, fixes, issues };

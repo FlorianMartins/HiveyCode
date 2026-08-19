@@ -61,7 +61,7 @@ export default function SharePage({ params }: { params: { id: string } }) {
             </button>
           ))}
         </aside>
-        <main className="min-w-0 flex-1 overflow-auto">
+        <main className="min-w-0 flex-1 overflow-auto min-h-0">
           <pre className="min-h-full p-4 text-[12px] leading-relaxed text-text/90">
             <code>{active ? snap.files[active] : ""}</code>
           </pre>

@@ -39,7 +39,7 @@ export function Chat() {
   return (
     <div className="relative flex h-full flex-col">
       <Workbench />
-      <div ref={scrollRef} className="relative flex-1 overflow-y-auto px-3 py-4 space-y-2.5">
+      <div ref={scrollRef} className="relative flex-1 overflow-y-auto px-3 py-4 space-y-2.5 min-h-0">
         {chat.map((m, i) => {
           if (m.role === "user")
             return (

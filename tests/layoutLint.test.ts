@@ -198,3 +198,42 @@ test("the plugin ignores tools other than write_file", async () => {
   const out = await ctx.waterfall("tools/post-execute", { call: { id: "1", name: "typecheck", input: {} }, result }, (v: any) => v.result);
   assert.deepEqual(out, result);
 });
+
+// ── Comments must not be read as markup ────────────────────────────────────────────────────
+
+test("a comment that MENTIONS a tag is not reported as that tag", () => {
+  // Found by running this lint against HiveyCode's own source: a comment explaining why a
+  // decorative <button> had been replaced by a <div> was itself flagged as a dead <button>.
+  const src = app(`    {/* This was a <button> with no handler; it is a colour sample. */}
+      <div aria-hidden="true" className="px-3">Accent</div>`);
+  assert.deepEqual(rules({ "src/A.tsx": src }), []);
+});
+
+test("a line comment mentioning an input does not trigger the overlap rule", () => {
+  const src = app(`    <div className="relative">
+      {/* an absolute left- control over an <input> would need pl-9 here */}
+      <div className="p-2">nothing interactive at all</div>
+    </div>`);
+  assert.deepEqual(rules({ "src/A.tsx": src }), []);
+});
+
+test("blanking comments does not shift the reported line numbers", () => {
+  const src = `export default function App() {
+  /* a long
+     multi-line comment
+     spanning several lines */
+  return (
+    <button className="p-2">Dead</button>
+  );
+}
+`;
+  const [issue] = lintLayout({ "src/A.tsx": src }).issues;
+  assert.equal(issue.rule, "dead-button");
+  assert.equal(issue.line, 6, "the line number must still point at the real button");
+});
+
+test("a tag inside a STRING is still seen (it is markup the code emits)", () => {
+  // Only comments are neutralised. A template literal building markup is real output.
+  const src = `export const html = \`<button class="p-2">Dead</button>\`;\nexport default function App(){ return <div/>; }\n`;
+  assert.ok(rules({ "src/A.tsx": src }).includes("dead-button"));
+});

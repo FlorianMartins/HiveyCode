@@ -199,7 +199,9 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
                   <div className="text-[12px] text-text">Aa Sample surface</div>
                   <div className="text-[11px] text-muted">Muted text on a panel</div>
                 </div>
-                <button className="rounded-lg bg-hivey-grad px-3 text-[12px] font-medium text-on-accent">Accent</button>
+                {/* A colour SAMPLE, not a control. As a <button> it took a keyboard tab stop and did
+                    nothing when activated — a focusable dead end for anyone not using a mouse. */}
+                <div aria-hidden="true" className="flex items-center rounded-lg bg-hivey-grad px-3 text-[12px] font-medium text-on-accent">Accent</div>
               </div>
             </div>
 
