@@ -17,14 +17,20 @@ import type { HiveyVariant, Role } from "./types";
  * (Opus 4.8 → Opus 4.9, Sonnet 5 → Sonnet 6…), and any id that disappears from the catalogue is
  * repaired. Same-family only — never a risky cross-vendor jump. Edit the ids freely: the script
  * only ever moves a role FORWARD within the family you chose.
+ *
+ * MEASURED, 2026-08-19: in a free-model bake-off on three pure functions with edge cases — the
+ * answer EXTRACTED and EXECUTED against assertions, not eyeballed — every code-SPECIALISED free
+ * model scored 2/3 (poolside/laguna-s-2.1 and -xs, cohere/north-mini-code) while the general
+ * nemotron-3-super-120b-a12b and nemotron-3.5-lightning scored 3/3. The free coder and debugger
+ * moved accordingly. A "-code" suffix is a claim, not a result.
  */
 // <hivey:start>
 const MODELS: Record<HiveyVariant, Record<Role, string>> = {
   "hivey/free": {
     "planner": "nvidia/nemotron-3.5-lightning:free",
-    "coder": "poolside/laguna-s-2.1:free",
+    "coder": "nvidia/nemotron-3-super-120b-a12b:free",
     "reviewer": "nvidia/nemotron-3.5-lightning:free",
-    "debugger": "poolside/laguna-s-2.1:free",
+    "debugger": "nvidia/nemotron-3-super-120b-a12b:free",
     "tester": "nvidia/nemotron-3.5-lightning:free"
   },
   "hivey": {
