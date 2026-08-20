@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
-import { VARIANT_LABELS } from "@/agent/models";
+import { VARIANT_LABELS, modelFor } from "@/agent/models";
 import type { HiveyVariant } from "@/agent/types";
 import { modelScore, scoreColor, costLabel, priceTier } from "@/lib/benchmarks";
 import { Popover } from "./Popover";
@@ -101,7 +101,11 @@ function ModelList({ onPick, current }: { onPick: (v: string) => void; current: 
         value: k,
         label: VARIANT_LABELS[k],
         vendor: "Hivey",
-        score: modelScore(k.includes("smart") ? "anthropic/claude-opus" : k.includes("free") ? "qwen/qwen3-coder" : "anthropic/claude-sonnet", CATEGORY),
+        // Score the model the preset ACTUALLY uses for this category's role. It used to be scored
+        // from three hardcoded stand-ins — and one of them, "qwen/qwen3-coder", had been withdrawn
+        // from the catalogue entirely, so the Free preset advertised the quality of a model that no
+        // longer existed. Reading the assignment means the badge follows every re-tiering for free.
+        score: modelScore(modelFor(k, "coder"), CATEGORY),
         isHivey: true,
         desc: HIVEY_DESC[k],
       })),
