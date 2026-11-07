@@ -12,6 +12,7 @@ export interface ProviderDef {
 
 export const PROVIDERS: ProviderDef[] = [
   { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", keyHint: "sk-or-v1-…" },
+  { id: "demonroute", label: "Demon Route", baseUrl: "https://api.demonroute.com/v1", keyHint: "sk-…" },
   { id: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", keyHint: "sk-…" },
   { id: "google", label: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyHint: "AIza…", models: "https://generativelanguage.googleapis.com/v1beta/openai/models" },
   { id: "groq", label: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyHint: "gsk_…" },
